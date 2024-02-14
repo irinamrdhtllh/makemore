@@ -18,12 +18,18 @@ for word in words:
         j = str_to_int[ch2]
         n_bigrams[i, j] += 1
 
-plt.figure(figsize=(27, 27))
-plt.imshow(n_bigrams, cmap="Blues")
-for i in range(n_bigrams.shape[0]):
-    for j in range(n_bigrams.shape[1]):
-        ch_to_str = int_to_str[i] + int_to_str[j]
-        plt.text(j, i, ch_to_str, ha="center", va="bottom", color="gray")
-        plt.text(j, i, n_bigrams[i, j].item(), ha="center", va="top", color="gray")
-plt.axis("off")
-plt.show()
+g = torch.Generator().manual_seed(32)
+
+for i in range(10):
+    outputs = []
+    ix = 0
+    while True:
+        probs = n_bigrams[ix].float()
+        probs = probs / probs.sum()
+        ix = torch.multinomial(
+            probs, num_samples=1, replacement=True, generator=g
+        ).item()
+        outputs.append(int_to_str[ix])
+        if ix == 0:
+            break
+    print("".join(outputs))
