@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 
 
 # Create the dataset
@@ -24,20 +23,21 @@ inputs = torch.tensor(inputs)
 targets = torch.tensor(targets)
 n_inputs = inputs.nelement()
 
-print(f"number of examples: {n_inputs}")
-
 # Initialize the network
 generator = torch.Generator().manual_seed(32)
 weights = torch.randn((27, 27), generator=generator, requires_grad=True)
 
 # Gradient descent
-for iter in range(100):
+for iter in range(1000):
     # Forward pass
     enc_inputs = F.one_hot(inputs, num_classes=27).float()
     logits = enc_inputs @ weights
     counts = logits.exp()
     probs = counts / counts.sum(1, keepdim=True)
-    loss = -probs[torch.arange(n_inputs), targets].log().mean()
+    loss = (
+        -probs[torch.arange(n_inputs), targets].log().mean()
+        + 0.01 * (weights**2).mean()
+    )
     print(f"iteration {iter + 1}, loss {loss.item()}")
 
     # Backward pass
@@ -45,4 +45,23 @@ for iter in range(100):
     loss.backward()
 
     # Update the parameters
-    weights.data += -0.1 * weights.grad
+    weights.data += -1 * weights.grad
+
+# Sample from the neural network model
+for i in range(5):
+    outputs = []
+    ix = 0
+    while True:
+        enc_x = F.one_hot(torch.tensor([ix]), num_classes=27).float()
+        logits = enc_x @ weights
+        counts = logits.exp()
+        probs = counts / counts.sum(1, keepdim=True)
+
+        ix = torch.multinomial(
+            probs, num_samples=1, replacement=True, generator=generator
+        ).item()
+        outputs.append(int_to_str[ix])
+        if ix == 0:
+            break
+
+    print("".join(outputs))
