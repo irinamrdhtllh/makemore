@@ -20,14 +20,16 @@ for word in words:
 
 g = torch.Generator().manual_seed(32)
 
+probs = n_bigrams.float()
+probs /= probs.sum(1, keepdim=True)
+
 for i in range(10):
     outputs = []
     ix = 0
     while True:
-        probs = n_bigrams[ix].float()
-        probs = probs / probs.sum()
+        prob = probs[ix]
         ix = torch.multinomial(
-            probs, num_samples=1, replacement=True, generator=g
+            prob, num_samples=1, replacement=True, generator=g
         ).item()
         outputs.append(int_to_str[ix])
         if ix == 0:
