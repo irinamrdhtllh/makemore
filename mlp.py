@@ -37,12 +37,15 @@ parameters = [lookup_table, weights_1, biases_1, weights_2, biases_2]
 for p in parameters:
     p.requires_grad = True
 
-for i in range(100):
+for i in range(1000):
+    # Minibatch
+    x = torch.randint(0, inputs.shape[0], (32,))
+
     # Forward pass
-    embed = lookup_table[inputs]
+    embed = lookup_table[inputs[x]]
     h = torch.tanh(embed.view(-1, 6) @ weights_1 + biases_1)
     logits = h @ weights_2 + biases_2
-    loss = F.cross_entropy(logits, targets)
+    loss = F.cross_entropy(logits, targets[x])
     print(f"iter: {i + 1}, loss: {loss}")
 
     # Backward pass
