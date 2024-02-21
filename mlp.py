@@ -52,10 +52,9 @@ if __name__ == "__main__":
 
     # Weights and biases
     g = torch.Generator().manual_seed(32)
-    w1 = (
-        torch.randn((n_embed * block_size, n_hidden), generator=g).to(device=device)
-        * 0.1
-    )
+    w1 = torch.randn((n_embed * block_size, n_hidden), generator=g).to(
+        device=device
+    ) * ((5 / 3) / ((n_embed * block_size) ** 0.5))
     b1 = torch.randn(n_hidden, generator=g).to(device=device) * 0.01
     w2 = torch.randn((n_hidden, vocab_size), generator=g).to(device=device) * 0.01
     b2 = torch.randn(vocab_size, generator=g).to(device=device) * 0.01
@@ -65,14 +64,17 @@ if __name__ == "__main__":
         p.requires_grad = True
 
     for i in range(max_iter + 1):
-        # Minibatch
-        x = torch.randint(0, X_train.shape[0], (batch_size,), generator=g)
+        # Construct minibatch
+        ix = torch.randint(0, X_train.shape[0], (batch_size,), generator=g)
+        X_batch, y_batch = X_train[ix], y_train[ix]
 
         # Forward pass
-        embed = lookup_table[X_train[x]]
-        h = torch.tanh(embed.view(-1, 30) @ w1 + b1)
-        logits = h @ w2 + b2
-        loss = F.cross_entropy(logits, y_train[x])
+        embed = lookup_table[X_batch]  # Embed the characters into vectors
+        embed = embed.view(embed.shape[0], -1)  # Concatenante the vectors
+        h_preact = embed @ w1 + b1  # Pre-activated hidden layer
+        h = torch.tanh(h_preact)  # Hidden layer
+        logits = h @ w2 + b2  # Output layer
+        loss = F.cross_entropy(logits, y_batch)  # Loss function
 
         # Backward pass
         for p in parameters:
@@ -90,7 +92,9 @@ if __name__ == "__main__":
 
     # Evaluate the model
     embed = lookup_table[X_dev]
-    h = torch.tanh(embed.view(-1, 30) @ w1 + b1)
+    embed = embed.view(embed.shape[0], -1)
+    h_preact = embed @ w1 + b1
+    h = torch.tanh(h_preact)
     logits = h @ w2 + b2
     loss = F.cross_entropy(logits, y_dev)
     print(f"eval loss: {loss}")
