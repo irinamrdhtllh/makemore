@@ -3,11 +3,7 @@ import torch
 import torch.nn.functional as F
 
 
-random.seed(42)
-
-
 def build_dataset(words):
-    block_size = 3
     X, y = [], []
     for w in words:
         context = [0] * block_size
@@ -16,13 +12,15 @@ def build_dataset(words):
             X.append(context)
             y.append(target)
             context = context[1:] + [target]
-    X = torch.tensor(X)
-    y = torch.tensor(y)
+    X = torch.tensor(X).to(device=device)
+    y = torch.tensor(y).to(device=device)
 
     return X, y
 
 
 if __name__ == "__main__":
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     # Read the dataset file
     words = open("names.txt", "r").read().splitlines()
 
@@ -32,7 +30,9 @@ if __name__ == "__main__":
     int_to_str = {i: s for s, i in str_to_int.items()}
 
     # Build the dataset (train, dev, test)
+    random.seed(42)
     random.shuffle(words)
+    block_size = 3
     n1 = int(0.8 * len(words))
     n2 = int(0.9 * len(words))
     X_train, y_train = build_dataset(words[:n1])
@@ -40,20 +40,20 @@ if __name__ == "__main__":
     X_test, y_test = build_dataset(words[n2:])
 
     # Look-up table
-    lookup_table = torch.randn((27, 10))
+    lookup_table = torch.randn((27, 10)).to(device=device)
 
     # Weights and biases
     generator = torch.Generator().manual_seed(32)
-    weights_1 = torch.randn((30, 200), generator=generator)
-    weights_2 = torch.randn((200, 27), generator=generator)
-    biases_1 = torch.randn(200, generator=generator)
-    biases_2 = torch.randn(27, generator=generator)
+    weights_1 = torch.randn((30, 200), generator=generator).to(device=device)
+    weights_2 = torch.randn((200, 27), generator=generator).to(device=device)
+    biases_1 = torch.randn(200, generator=generator).to(device=device)
+    biases_2 = torch.randn(27, generator=generator).to(device=device)
     parameters = [lookup_table, weights_1, biases_1, weights_2, biases_2]
 
     for p in parameters:
         p.requires_grad = True
 
-    for i in range(10000):
+    for i in range(200_000):
         # Minibatch
         x = torch.randint(0, X_train.shape[0], (32,))
 
@@ -70,8 +70,9 @@ if __name__ == "__main__":
         loss.backward()
 
         # Update parameters
+        lr = 0.1 if i < 100_000 else 0.01
         for p in parameters:
-            p.data += -0.1 * p.grad
+            p.data += -lr * p.grad
 
     # Evaluate the model
     embed = lookup_table[X_dev]
@@ -79,3 +80,21 @@ if __name__ == "__main__":
     logits = h @ weights_2 + biases_2
     loss = F.cross_entropy(logits, y_dev)
     print(f"eval loss: {loss}")
+
+    # Sample from the model
+    generator = torch.Generator(device=device).manual_seed(42)
+    for _ in range(20):
+        output = []
+        context = [0] * block_size
+        while True:
+            embed = lookup_table[torch.tensor([context])]
+            h = torch.tanh(embed.view(1, -1) @ weights_1 + biases_1)
+            logits = h @ weights_2 + biases_2
+            probs = F.softmax(logits, dim=1)
+            target = torch.multinomial(probs, num_samples=1, generator=generator).item()
+            context = context[1:] + [target]
+            output.append(target)
+            if target == 0:
+                break
+
+        print("".join(int_to_str[i] for i in output))
