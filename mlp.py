@@ -3,6 +3,14 @@ import torch
 import torch.nn.functional as F
 
 
+# Hyperparameters
+n_embed = 10  # The dimensionality of the character embedding vectors
+n_hidden = 200  # The number of neurons in the hidden layer
+block_size = 3
+batch_size = 32
+max_iter = 200_000
+
+
 def build_dataset(words):
     X, y = [], []
     for w in words:
@@ -25,6 +33,7 @@ if __name__ == "__main__":
     words = open("names.txt", "r").read().splitlines()
 
     chars = sorted(list(set("".join(words))))
+    vocab_size = len(chars) + 1
     str_to_int = {s: i + 1 for i, s in enumerate(chars)}
     str_to_int["."] = 0
     int_to_str = {i: s for s, i in str_to_int.items()}
@@ -32,7 +41,6 @@ if __name__ == "__main__":
     # Build the dataset (train, dev, test)
     random.seed(42)
     random.shuffle(words)
-    block_size = 3
     n1 = int(0.8 * len(words))
     n2 = int(0.9 * len(words))
     X_train, y_train = build_dataset(words[:n1])
@@ -40,29 +48,28 @@ if __name__ == "__main__":
     X_test, y_test = build_dataset(words[n2:])
 
     # Look-up table
-    lookup_table = torch.randn((27, 10)).to(device=device)
+    lookup_table = torch.randn((vocab_size, n_embed)).to(device=device)
 
     # Weights and biases
-    generator = torch.Generator().manual_seed(32)
-    weights_1 = torch.randn((30, 200), generator=generator).to(device=device)
-    weights_2 = torch.randn((200, 27), generator=generator).to(device=device)
-    biases_1 = torch.randn(200, generator=generator).to(device=device)
-    biases_2 = torch.randn(27, generator=generator).to(device=device)
-    parameters = [lookup_table, weights_1, biases_1, weights_2, biases_2]
+    g = torch.Generator().manual_seed(32)
+    w1 = torch.randn((n_embed * block_size, n_hidden), generator=g).to(device=device)
+    b1 = torch.randn(n_hidden, generator=g).to(device=device)
+    w2 = torch.randn((n_hidden, vocab_size), generator=g).to(device=device)
+    b2 = torch.randn(vocab_size, generator=g).to(device=device)
+    parameters = [lookup_table, w1, b1, w2, b2]
 
     for p in parameters:
         p.requires_grad = True
 
-    for i in range(200_000):
+    for i in range(max_iter + 1):
         # Minibatch
-        x = torch.randint(0, X_train.shape[0], (32,))
+        x = torch.randint(0, X_train.shape[0], (batch_size,), generator=g)
 
         # Forward pass
         embed = lookup_table[X_train[x]]
-        h = torch.tanh(embed.view(-1, 30) @ weights_1 + biases_1)
-        logits = h @ weights_2 + biases_2
+        h = torch.tanh(embed.view(-1, 30) @ w1 + b1)
+        logits = h @ w2 + b2
         loss = F.cross_entropy(logits, y_train[x])
-        print(f"iter: {i + 1}, loss: {loss}")
 
         # Backward pass
         for p in parameters:
@@ -74,24 +81,28 @@ if __name__ == "__main__":
         for p in parameters:
             p.data += -lr * p.grad
 
+        # Track the training process
+        if i % 1000 == 0:
+            print(f"iter: {i + 1}, loss: {loss}")
+
     # Evaluate the model
     embed = lookup_table[X_dev]
-    h = torch.tanh(embed.view(-1, 30) @ weights_1 + biases_1)
-    logits = h @ weights_2 + biases_2
+    h = torch.tanh(embed.view(-1, 30) @ w1 + b1)
+    logits = h @ w2 + b2
     loss = F.cross_entropy(logits, y_dev)
     print(f"eval loss: {loss}")
 
     # Sample from the model
-    generator = torch.Generator(device=device).manual_seed(42)
+    g = torch.Generator(device=device).manual_seed(42)
     for _ in range(20):
         output = []
         context = [0] * block_size
         while True:
             embed = lookup_table[torch.tensor([context])]
-            h = torch.tanh(embed.view(1, -1) @ weights_1 + biases_1)
-            logits = h @ weights_2 + biases_2
+            h = torch.tanh(embed.view(1, -1) @ w1 + b1)
+            logits = h @ w2 + b2
             probs = F.softmax(logits, dim=1)
-            target = torch.multinomial(probs, num_samples=1, generator=generator).item()
+            target = torch.multinomial(probs, num_samples=1, generator=g).item()
             context = context[1:] + [target]
             output.append(target)
             if target == 0:
