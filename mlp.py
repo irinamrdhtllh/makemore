@@ -54,8 +54,8 @@ if __name__ == "__main__":
     g = torch.Generator().manual_seed(32)
     w1 = torch.randn((n_embed * block_size, n_hidden), generator=g).to(device=device)
     b1 = torch.randn(n_hidden, generator=g).to(device=device)
-    w2 = torch.randn((n_hidden, vocab_size), generator=g).to(device=device)
-    b2 = torch.randn(vocab_size, generator=g).to(device=device)
+    w2 = torch.randn((n_hidden, vocab_size), generator=g).to(device=device) * 0.01
+    b2 = torch.randn(vocab_size, generator=g).to(device=device) * 0
     parameters = [lookup_table, w1, b1, w2, b2]
 
     for p in parameters:
