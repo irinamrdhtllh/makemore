@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 
 class Linear:
-    def __init__(self, fan_in, fan_out, generator, bias=True, device=None):
+    def __init__(self, fan_in, fan_out, generator=None, bias=True, device=None):
         self.weight = (
             torch.randn((fan_in, fan_out), generator=generator, device=device)
             / fan_in**0.5
@@ -64,6 +64,29 @@ class BatchNorm1D:
 class Tanh:
     def __call__(self, x):
         self.out = torch.tanh(x)
+        return self.out
+
+    def parameters(self):
+        return []
+
+
+class Embedding:
+    def __init__(self, num_embeddings, embedding_dim, generator=None, device=None):
+        self.weight = torch.randn(
+            (num_embeddings, embedding_dim), generator=generator, device=device
+        )
+
+    def __call__(self, x):
+        self.out = self.weight[x]
+        return self.out
+
+    def parameters(self):
+        return [self.weight]
+
+
+class Flatten:
+    def __call__(self, x):
+        self.out = x.view(x.shape[0], -1)
         return self.out
 
     def parameters(self):

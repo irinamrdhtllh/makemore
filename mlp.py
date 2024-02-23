@@ -2,7 +2,7 @@ import random
 import torch
 import torch.nn.functional as F
 
-from layers import Linear, BatchNorm1D, Tanh
+from layers import Linear, BatchNorm1D, Tanh, Embedding, Flatten
 
 
 # Hyperparameters
@@ -36,8 +36,7 @@ def calculate_loss(mode, layers):
         "test": (X_test, y_test),
     }[mode]
 
-    embed = C[X]
-    x = embed.view(embed.shape[0], -1)
+    x = X
     for layer in layers:
         x = layer(x)
     loss = F.cross_entropy(x, y)
@@ -67,11 +66,10 @@ if __name__ == "__main__":
     X_dev, y_dev = build_dataset(words[n1:n2], device=d)
     X_test, y_test = build_dataset(words[n2:], device=d)
 
-    # Look-up table
-    C = torch.randn((vocab_size, n_embed), device=d)
-
     # Neural network layers
     layers = [
+        Embedding(vocab_size, n_embed, generator=g, device=d),
+        Flatten(),
         Linear(n_embed * block_size, n_hidden, generator=g, device=d),
         BatchNorm1D(n_hidden, device=d),
         Tanh(),
@@ -100,7 +98,7 @@ if __name__ == "__main__":
             if isinstance(layer, Linear):
                 layer.weight *= 5 / 3
 
-    parameters = [C] + [p for layer in layers for p in layer.parameters()]
+    parameters = [p for layer in layers for p in layer.parameters()]
     for p in parameters:
         p.requires_grad = True
 
@@ -110,8 +108,7 @@ if __name__ == "__main__":
         X_batch, y_batch = X_train[ix], y_train[ix]
 
         # Forward pass
-        embed = C[X_batch]  # Embed the characters into vectors
-        x = embed.view(embed.shape[0], -1)  # Concatenante the vectors
+        x = X_batch
         for layer in layers:
             x = layer(x)
         loss = F.cross_entropy(x, y_batch)
@@ -146,8 +143,7 @@ if __name__ == "__main__":
 
         while True:
             # Forward pass
-            embed = C[torch.tensor([context])]
-            x = embed.view(embed.shape[0], -1)
+            x = torch.tensor([context])
             for layer in layers:
                 x = layer(x)
             logits = x
