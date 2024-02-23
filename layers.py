@@ -84,10 +84,31 @@ class Embedding:
         return [self.weight]
 
 
-class Flatten:
+class FlattenConsecutive:
+    def __init__(self, n):
+        self.n = n
+
     def __call__(self, x):
-        self.out = x.view(x.shape[0], -1)
+        B, T, C = x.shape
+        x = x.view(B, -1, C * self.n)
+        if x.shape[1] == 1:
+            x = x.squeeze(1)
+        self.out = x
         return self.out
 
     def parameters(self):
         return []
+
+
+class Sequential:
+    def __init__(self, layers):
+        self.layers = layers
+
+    def __call__(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        self.out = x
+        return self.out
+
+    def parameters(self):
+        return [p for layer in self.layers for p in layer.parameters()]
