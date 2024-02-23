@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 
 
 class Linear:
@@ -35,8 +34,12 @@ class BatchNorm1D:
     def __call__(self, x):
         # Forward pass
         if self.training:
-            x_mean = x.mean(0, keepdim=True)  # Batch mean
-            x_var = x.var(0, keepdim=True, unbiased=True)  # Batch variance
+            if x.ndim == 2:
+                dim = 0
+            elif x.ndim == 3:
+                dim = (0, 1)
+            x_mean = x.mean(dim, keepdim=True)  # Batch mean
+            x_var = x.var(dim, keepdim=True, unbiased=True)  # Batch variance
         else:
             x_mean = self.running_mean
             x_var = self.running_var
